@@ -19,6 +19,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -27,13 +28,15 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
-    private final String[] allowedOrigins;
+    private final List<String> allowedOrigins;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthFilter,
             @Value("${cors.allowed-origins}") String allowedOriginsProp) {
         this.jwtAuthFilter = jwtAuthFilter;
-        this.allowedOrigins = allowedOriginsProp.split("\\s*,\\s*");
+        this.allowedOrigins = Arrays.stream(allowedOriginsProp.split("\\s*,\\s*"))
+                .map(origin -> origin.replaceAll("/+$", ""))
+                .toList();
     }
 
     @Bean
@@ -55,7 +58,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/login", "/api/v1/auth/logout"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/products/**", "/api/v1/products/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/signup", "/api/v1/auth/register").permitAll()
+                        .requestMatchers("/payments/**", "/api/v1/payments/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -71,9 +74,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(allowedOrigins));
+        configuration.setAllowedOriginPatterns(allowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 

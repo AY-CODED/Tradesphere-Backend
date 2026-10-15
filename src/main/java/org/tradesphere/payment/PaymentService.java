@@ -1,87 +1,48 @@
-// src/main/java/org/tradesphere/payment/PaymentService.java
 package org.tradesphere.payment;
 
-import org.springframework.context.event.EventListener;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.tradesphere.notification.NotificationService;
-import org.tradesphere.order.OrderCreatedEvent;
-import org.tradesphere.order.OrderItem;
+import org.springframework.web.client.RestTemplate;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class PaymentService {
-    private final PaymentRepository paymentRepository;
-    private final NotificationService notificationService;
 
-    public PaymentService(PaymentRepository paymentRepository, NotificationService notificationService) {
-        this.paymentRepository = paymentRepository;
-        this.notificationService = notificationService;
+    @Value("${paystack.secret-key}")
+    private String paystackSecretKey;
+
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    public Map<String, Object> initializePayment(String email, double amountInNaira, String callbackUrl) {
+        String url = "https://api.paystack.co/transaction/initialize";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(paystackSecretKey);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("email", email);
+        body.put("amount", (int) (amountInNaira * 100)); // Convert Naira to Kobo
+        if (callbackUrl != null && !callbackUrl.isEmpty()) {
+            body.put("callback_url", callbackUrl);
+        }
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+        return response.getBody();
     }
 
-    @EventListener
-    public void handleOrderCreated(OrderCreatedEvent event) {
-        List<String> vendorIds = event.items() != null
-                ? event.items().stream()
-                .map(OrderItem::getVendorId)
-                .filter(id -> id != null && !id.isBlank())
-                .distinct()
-                .collect(Collectors.toList())
-                : List.of();
+    public Map<String, Object> verifyPayment(String reference) {
+        String url = "https://api.paystack.co/transaction/verify/" + reference;
 
-        Payment payment = Payment.builder()
-                .orderId(event.orderId())
-                .buyerId(event.buyerId())
-                .buyerName(event.buyerName())
-                .vendorIds(vendorIds)
-                .amount(event.totalAmount())
-                .paymentMethod("ESCROW")
-                .transactionReference("TS-PAY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
-                .status(Payment.PaymentStatus.ESCROW_HELD)
-                .processedAt(Instant.now())
-                .build();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(paystackSecretKey);
 
-        paymentRepository.save(payment);
-    }
-
-    public Payment releaseEscrowByOrderId(String orderId) {
-        return paymentRepository.findByOrderId(orderId)
-                .map(payment -> {
-                    payment.setStatus(Payment.PaymentStatus.RELEASED);
-                    payment.setReleasedAt(Instant.now());
-                    Payment saved = paymentRepository.save(payment);
-
-                    if (saved.getVendorIds() != null) {
-                        for (String vendorId : saved.getVendorIds()) {
-                            notificationService.create(
-                                    vendorId,
-                                    "Escrow Payout Released",
-                                    "Escrow funds ($" + saved.getAmount() + ") for Order #" +
-                                            orderId.substring(Math.max(0, orderId.length() - 6)).toUpperCase() +
-                                            " have been released to your TradeSphere payout balance.",
-                                    "VENDOR",
-                                    "/vendor-workspace"
-                            );
-                        }
-                    }
-                    return saved;
-                })
-                .orElse(null);
-    }
-
-    public List<Payment> getBuyerPayments(String buyerId) {
-        return paymentRepository.findByBuyerIdOrderByProcessedAtDesc(buyerId);
-    }
-
-    public List<Payment> getVendorPayments(String vendorId) {
-        return paymentRepository.findByVendorIdsContainingOrderByProcessedAtDesc(vendorId);
-    }
-
-    public Payment getByOrderId(String orderId) {
-        return paymentRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Payment record not found for order"));
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+        return response.getBody();
     }
 }
