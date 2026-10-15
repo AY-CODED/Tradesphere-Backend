@@ -31,9 +31,9 @@ public class SecurityConfig {
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthFilter,
-            @Value("${cors.allowed-origins}") String[] allowedOrigins) {
+            @Value("${cors.allowed-origins}") String allowedOriginsProp) {
         this.jwtAuthFilter = jwtAuthFilter;
-        this.allowedOrigins = allowedOrigins;
+        this.allowedOrigins = allowedOriginsProp.split("\\s*,\\s*");
     }
 
     @Bean
