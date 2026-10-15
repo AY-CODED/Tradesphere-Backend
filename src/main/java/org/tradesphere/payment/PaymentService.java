@@ -1,3 +1,4 @@
+// src/main/java/org/tradesphere/payment/PaymentService.java
 package org.tradesphere.payment;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -44,5 +45,9 @@ public class PaymentService {
         HttpEntity<Void> entity = new HttpEntity<>(headers);
         ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
         return response.getBody();
+    }
+
+    public void releaseEscrowByOrderId(String orderId) {
+        // Escrow release stub to satisfy OrderService invocation
     }
 }
