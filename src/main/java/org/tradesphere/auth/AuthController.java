@@ -3,6 +3,7 @@ package org.tradesphere.auth;
 
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -15,9 +16,17 @@ import java.time.Duration;
 @RequestMapping({"/auth", "/api/v1/auth"})
 public class AuthController {
     private final AuthService authService;
+    private final boolean cookieSecure;
+    private final String cookieSameSite;
 
-    public AuthController(AuthService authService) {
+    public AuthController(
+            AuthService authService,
+            @Value("${auth.cookie.secure:true}") boolean cookieSecure,
+            @Value("${auth.cookie.same-site:None}") String cookieSameSite
+    ) {
         this.authService = authService;
+        this.cookieSecure = cookieSecure;
+        this.cookieSameSite = cookieSameSite;
     }
 
     @PostMapping({"/signup", "/register"})
@@ -67,10 +76,10 @@ public class AuthController {
     private void setAuthCookie(HttpServletResponse response, String token, Duration maxAge) {
         ResponseCookie cookie = ResponseCookie.from("jwt", token)
                 .httpOnly(true)
-                .secure(false)
+                .secure(cookieSecure)
                 .path("/")
                 .maxAge(maxAge)
-                .sameSite("Lax")
+                .sameSite(cookieSameSite)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }

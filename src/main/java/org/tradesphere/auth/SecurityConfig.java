@@ -2,6 +2,7 @@
 package org.tradesphere.auth;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,9 +27,13 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
+    private final String[] allowedOrigins;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthFilter,
+            @Value("${cors.allowed-origins}") String[] allowedOrigins) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.allowedOrigins = allowedOrigins;
     }
 
     @Bean
@@ -43,12 +48,13 @@ public class SecurityConfig {
                     res.getWriter().write("{\"message\":\"Unauthorized\",\"errors\":{}}");
                 }))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/auth/signup", "/auth/register", "/auth/login", "/auth/logout",
-                                "/api/v1/auth/signup", "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/logout"
+                                "/api/v1/auth/signup", "/api/v1/auth/register",
+                                "/api/v1/auth/login", "/api/v1/auth/logout"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/products/**", "/api/v1/products/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/products/**", "/api/v1/products/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -64,7 +70,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000"));
+        configuration.setAllowedOrigins(List.of(allowedOrigins));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
         configuration.setAllowCredentials(true);
