@@ -75,9 +75,44 @@ public class ProductController {
         ));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Product> update(
+            @PathVariable String id,
+            @RequestBody UpdateProductRequest request
+    ) {
+        Integer resolvedStock = request.stock() != null ? request.stock() : request.quantity();
+        return ResponseEntity.ok(productService.update(
+                id,
+                request.name(),
+                request.category(),
+                request.sku(),
+                request.description(),
+                request.imageUrl(),
+                request.price(),
+                resolvedStock
+        ));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable String id) {
+        productService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
     public record CreateProductRequest(
             String vendorId,
             String vendorName,
+            String name,
+            String category,
+            String sku,
+            String description,
+            String imageUrl,
+            BigDecimal price,
+            Integer stock,
+            Integer quantity
+    ) {}
+
+    public record UpdateProductRequest(
             String name,
             String category,
             String sku,

@@ -52,6 +52,32 @@ public class ProductService {
         return productRepository.save(product);
     }
 
+    public Product update(
+            String id,
+            String name,
+            String category,
+            String sku,
+            String description,
+            String imageUrl,
+            BigDecimal price,
+            Integer stock
+    ) {
+        Product product = getById(id);
+        if (name != null && !name.isBlank()) product.setName(name.trim());
+        if (category != null) product.setCategory(category.trim());
+        if (sku != null) product.setSku(sku.trim());
+        if (description != null) product.setDescription(description.trim());
+        if (imageUrl != null) product.setImageUrl(imageUrl.trim());
+        if (price != null) product.setPrice(price);
+        if (stock != null) product.setStock(stock);
+        return productRepository.save(product);
+    }
+
+    public void delete(String id) {
+        Product product = getById(id);
+        productRepository.delete(product);
+    }
+
     public void deductStock(String productId, int quantity) {
         Product product = getById(productId);
         if (product.getStock() < quantity) {
