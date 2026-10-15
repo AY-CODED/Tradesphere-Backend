@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.tradesphere.catalog.Product;
 import org.tradesphere.catalog.ProductService;
 import org.tradesphere.notification.NotificationService;
+import org.tradesphere.payment.PaymentService;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -16,17 +17,20 @@ public class OrderService {
     private final ProductService productService;
     private final ApplicationEventPublisher eventPublisher;
     private final NotificationService notificationService;
+    private final PaymentService paymentService;
 
     public OrderService(
             OrderRepository orderRepository,
             ProductService productService,
             ApplicationEventPublisher eventPublisher,
-            NotificationService notificationService
+            NotificationService notificationService,
+            PaymentService paymentService
     ) {
         this.orderRepository = orderRepository;
         this.productService = productService;
         this.eventPublisher = eventPublisher;
         this.notificationService = notificationService;
+        this.paymentService = paymentService;
     }
 
     public Order placeOrder(
@@ -107,11 +111,13 @@ public class OrderService {
         order.setStatus(Order.OrderStatus.SHIPPED);
         Order saved = orderRepository.save(order);
 
+        paymentService.releaseEscrowByOrderId(orderId);
+
         if (saved.getBuyerId() != null) {
             notificationService.create(
                     saved.getBuyerId(),
-                    "Order Shipped",
-                    "Packing proof approved for Order #" + saved.getId().substring(Math.max(0, saved.getId().length() - 6)).toUpperCase() + ". Your items are on the way!",
+                    "Order Shipped & Escrow Released",
+                    "Packing proof approved for Order #" + saved.getId().substring(Math.max(0, saved.getId().length() - 6)).toUpperCase() + ". Escrow funds have been released to the vendor.",
                     "ORDER",
                     "/account?section=My%20orders"
             );
