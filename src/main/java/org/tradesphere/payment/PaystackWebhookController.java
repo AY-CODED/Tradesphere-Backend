@@ -7,16 +7,13 @@ import org.springframework.web.bind.annotation.*;
 import org.tradesphere.order.Order;
 import org.tradesphere.order.OrderRepository;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 @RestController
 @RequestMapping({"/payments/webhook", "/api/v1/payments/webhook"})
 public class PaystackWebhookController {
 
-    @Value("${paystack.secret.key:sk_test_placeholder}")
+    @Value("${paystack.secret-key:sk_test_placeholder}")
     private String secretKey;
 
     private final OrderRepository orderRepository;
@@ -28,11 +25,11 @@ public class PaystackWebhookController {
     }
 
     @PostMapping
+    @SuppressWarnings("unchecked")
     public ResponseEntity<String> handlePaystackWebhook(
             @RequestHeader(value = "x-paystack-signature", required = false) String signature,
             @RequestBody Map<String, Object> payload
     ) {
-        // Optional HMAC signature verification for production security
         String event = (String) payload.get("event");
         if ("charge.success".equals(event)) {
             Map<String, Object> data = (Map<String, Object>) payload.get("data");

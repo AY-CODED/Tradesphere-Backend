@@ -13,11 +13,12 @@ import java.util.Map;
 @Service
 public class PaystackService {
 
-    @Value("${paystack.secret.key:sk_test_placeholder}")
+    @Value("${paystack.secret-key:sk_test_placeholder}")
     private String secretKey;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    @SuppressWarnings("unchecked")
     public Map<String, Object> initializeTransaction(String email, BigDecimal amount, String orderId) {
         String url = "https://api.paystack.co/transaction/initialize";
 

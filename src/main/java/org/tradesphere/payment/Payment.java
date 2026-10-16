@@ -48,6 +48,6 @@ public class Payment {
     private Instant releasedAt;
 
     public enum PaymentStatus {
-        ESCROW_HELD, RELEASED, REFUNDED, FAILED
+        ESCROW_HELD, RELEASED, WITHDRAWN, REFUNDED, FAILED
     }
 }
