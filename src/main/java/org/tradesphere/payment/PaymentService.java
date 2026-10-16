@@ -42,7 +42,7 @@ public class PaymentService {
 
         Map<String, Object> body = new HashMap<>();
         body.put("email", email);
-        body.put("amount", (int) Math.round(amountInNaira * 100)); // Convert Naira to Kobo
+        body.put("amount", (int) Math.round(amountInNaira * 100));
         if (callbackUrl != null && !callbackUrl.isEmpty()) {
             body.put("callback_url", callbackUrl);
         }
@@ -62,6 +62,22 @@ public class PaymentService {
         HttpEntity<Void> entity = new HttpEntity<>(headers);
         ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
         return response.getBody();
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> resolveBankAccount(String accountNumber, String bankCode) {
+        String url = "https://api.paystack.co/bank/resolve?account_number=" + accountNumber + "&bank_code=" + bankCode;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(paystackSecretKey);
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            return response.getBody();
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not verify account details. Please check the account number and bank.");
+        }
     }
 
     public Payment recordEscrowPayment(String orderId, String buyerId, String buyerName, List<String> vendorIds, BigDecimal amount, String paymentMethod, String reference) {
@@ -126,7 +142,6 @@ public class PaymentService {
             grossAmount = grossAmount.add(payment.getAmount() != null ? payment.getAmount() : BigDecimal.ZERO);
         }
 
-        // 85% goes to the vendor, 15% stays in your Paystack balance as platform commission
         BigDecimal vendorPayout = grossAmount.multiply(VENDOR_SHARE_RATE).setScale(2, RoundingMode.HALF_UP);
         BigDecimal platformFee = grossAmount.multiply(PLATFORM_FEE_RATE).setScale(2, RoundingMode.HALF_UP);
         long payoutInKobo = vendorPayout.multiply(new BigDecimal("100")).longValue();
@@ -141,7 +156,6 @@ public class PaymentService {
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 headers.setBearerAuth(paystackSecretKey);
 
-                // Step 1: Create Transfer Recipient on Paystack
                 Map<String, Object> recipientPayload = new HashMap<>();
                 recipientPayload.put("type", "nuban");
                 recipientPayload.put("name", accountName);
@@ -162,7 +176,6 @@ public class PaymentService {
                 String recipientCode = recipientData != null ? (String) recipientData.get("recipient_code") : null;
 
                 if (recipientCode != null) {
-                    // Step 2: Initiate Transfer of 85% to Vendor's Bank Account
                     Map<String, Object> transferPayload = new HashMap<>();
                     transferPayload.put("source", "balance");
                     transferPayload.put("amount", payoutInKobo);
@@ -179,8 +192,6 @@ public class PaymentService {
                     );
                 }
             } catch (HttpClientErrorException ex) {
-                // If Paystack blocks transfer due to Starter Business tier or unsettled balance,
-                // record the 85/15 split cleanly so the withdrawal still succeeds and queues for settlement.
                 transferMode = "QUEUED_SETTLEMENT";
                 transferNote = "Payout of ₦" + vendorPayout + " (85%) to " + bankName + " (" + accountNumber + ") queued for settlement (15% platform fee: ₦" + platformFee + " retained).";
             } catch (Exception ex) {

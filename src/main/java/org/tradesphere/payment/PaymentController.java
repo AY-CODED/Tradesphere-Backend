@@ -68,6 +68,14 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.releaseEscrowByOrderId(orderId));
     }
 
+    @GetMapping("/resolve-account")
+    public ResponseEntity<Map<String, Object>> resolveAccount(
+            @RequestParam String accountNumber,
+            @RequestParam String bankCode
+    ) {
+        return ResponseEntity.ok(paymentService.resolveBankAccount(accountNumber, bankCode));
+    }
+
     @PostMapping("/withdraw")
     public ResponseEntity<Map<String, Object>> withdrawVendorFunds(@RequestBody Map<String, String> payload) {
         String vendorId = payload.get("vendorId");
