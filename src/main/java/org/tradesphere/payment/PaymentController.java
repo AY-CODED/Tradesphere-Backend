@@ -71,9 +71,12 @@ public class PaymentController {
     @PostMapping("/withdraw")
     public ResponseEntity<Map<String, Object>> withdrawVendorFunds(@RequestBody Map<String, String> payload) {
         String vendorId = payload.get("vendorId");
+        String bankCode = payload.getOrDefault("bankCode", "058");
         String bankName = payload.getOrDefault("bankName", "Vendor Bank");
         String accountNumber = payload.getOrDefault("accountNumber", "0000000000");
         String accountName = payload.getOrDefault("accountName", "Vendor Account");
-        return ResponseEntity.ok(paymentService.withdrawVendorFunds(vendorId, bankName, accountNumber, accountName));
+        return ResponseEntity.ok(
+                paymentService.withdrawVendorFunds(vendorId, bankCode, bankName, accountNumber, accountName)
+        );
     }
 }
