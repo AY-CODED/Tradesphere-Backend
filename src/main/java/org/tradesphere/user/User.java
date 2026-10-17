@@ -1,4 +1,4 @@
-// user/User.java
+// src/main/java/org/tradesphere/user/User.java
 package org.tradesphere.user;
 
 import lombok.*;

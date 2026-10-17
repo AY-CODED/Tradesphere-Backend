@@ -1,9 +1,11 @@
 // src/main/java/org/tradesphere/payment/PaymentController.java
 package org.tradesphere.payment;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -20,8 +22,18 @@ public class PaymentController {
     }
 
     @PostMapping("/initialize")
-    public ResponseEntity<Map<String, Object>> initialize(@RequestBody Map<String, Object> payload) {
-        String email = (String) payload.getOrDefault("email", "customer@tradesphere.com");
+    public ResponseEntity<Map<String, Object>> initialize(
+            @RequestBody Map<String, Object> payload,
+            Authentication authentication
+    ) {
+        String email = (String) payload.get("email");
+        if ((email == null || email.isBlank()) && authentication != null) {
+            email = authentication.getName();
+        }
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid customer email is required.");
+        }
+
         double amount = Double.parseDouble(payload.get("amount").toString());
         String callbackUrl = (String) payload.get("callbackUrl");
         return ResponseEntity.ok(paymentService.initializePayment(email, amount, callbackUrl));
@@ -37,12 +49,14 @@ public class PaymentController {
     public ResponseEntity<Payment> recordPayment(@RequestBody Map<String, Object> payload) {
         String orderId = (String) payload.get("orderId");
         String buyerId = (String) payload.get("buyerId");
-        String buyerName = (String) payload.get("buyerName");
+        String buyerName = sanitizeDisplayName((String) payload.get("buyerName"));
         List<String> vendorIds = (List<String>) payload.get("vendorIds");
         BigDecimal amount = new BigDecimal(payload.getOrDefault("amount", "0").toString());
         String paymentMethod = (String) payload.getOrDefault("paymentMethod", "card");
         String reference = (String) payload.get("transactionReference");
-        return ResponseEntity.ok(paymentService.recordEscrowPayment(orderId, buyerId, buyerName, vendorIds, amount, paymentMethod, reference));
+        return ResponseEntity.ok(
+                paymentService.recordEscrowPayment(orderId, buyerId, buyerName, vendorIds, amount, paymentMethod, reference)
+        );
     }
 
     @GetMapping("/me")
@@ -50,22 +64,34 @@ public class PaymentController {
         if (authentication == null || authentication.getName() == null) {
             return ResponseEntity.ok(List.of());
         }
-        return ResponseEntity.ok(paymentService.getPaymentsByBuyer(authentication.getName()));
+        List<Payment> payments = paymentService.getPaymentsByBuyer(authentication.getName());
+        payments.forEach(p -> p.setBuyerName(sanitizeDisplayName(p.getBuyerName())));
+        return ResponseEntity.ok(payments);
     }
 
     @GetMapping("/vendor/{vendorId}")
     public ResponseEntity<List<Payment>> getVendorPayments(@PathVariable String vendorId) {
-        return ResponseEntity.ok(paymentService.getPaymentsByVendor(vendorId));
+        List<Payment> payments = paymentService.getPaymentsByVendor(vendorId);
+        payments.forEach(p -> p.setBuyerName(sanitizeDisplayName(p.getBuyerName())));
+        return ResponseEntity.ok(payments);
     }
 
     @GetMapping("/order/{orderId}")
     public ResponseEntity<Payment> getPaymentByOrder(@PathVariable String orderId) {
-        return ResponseEntity.ok(paymentService.getPaymentByOrderId(orderId));
+        Payment payment = paymentService.getPaymentByOrderId(orderId);
+        if (payment != null) {
+            payment.setBuyerName(sanitizeDisplayName(payment.getBuyerName()));
+        }
+        return ResponseEntity.ok(payment);
     }
 
     @PostMapping("/order/{orderId}/release")
     public ResponseEntity<Payment> releaseOrderEscrow(@PathVariable String orderId) {
-        return ResponseEntity.ok(paymentService.releaseEscrowByOrderId(orderId));
+        Payment payment = paymentService.releaseEscrowByOrderId(orderId);
+        if (payment != null) {
+            payment.setBuyerName(sanitizeDisplayName(payment.getBuyerName()));
+        }
+        return ResponseEntity.ok(payment);
     }
 
     @GetMapping("/resolve-account")
@@ -86,5 +112,15 @@ public class PaymentController {
         return ResponseEntity.ok(
                 paymentService.withdrawVendorFunds(vendorId, bankCode, bankName, accountNumber, accountName)
         );
+    }
+
+    private String sanitizeDisplayName(String name) {
+        if (name == null || name.isBlank()) {
+            return "Verified Buyer";
+        }
+        if (name.contains("@")) {
+            return name.substring(0, name.indexOf('@'));
+        }
+        return name;
     }
 }
